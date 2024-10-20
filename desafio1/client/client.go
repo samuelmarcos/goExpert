@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +10,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/google/uuid"
+	_ "modernc.org/sqlite"
 )
 
 type CotacaoResume struct {
@@ -16,7 +20,38 @@ type CotacaoResume struct {
 	Bid string
 }
 
+type DollarInfo struct {
+	ID    string
+	Dolar string
+}
+
+func initDB() (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "cotacao.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.ExecContext(
+		context.Background(),
+		`DROP TABLE IF EXISTS cotacoes;
+		 CREATE TABLE cotacoes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT, 
+			dolar VARCHAR(10)
+		)`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 func main() {
+
+	db, err := initDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 	defer cancel()
@@ -52,5 +87,29 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var dollarInfo = NewDolarInfo(resume.Bid)
+
+	err = SaveDollarInfo(db, dollarInfo, ctx)
+
 	fmt.Println(body)
+}
+
+func SaveDollarInfo(db *sql.DB, resume *DollarInfo, ctx context.Context) error {
+	_, err := db.ExecContext(
+		ctx,
+		"insert into cotacoes(id,bid) values (?,?), resume.ID, resume.Dolar",
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func NewDolarInfo(bid string) *DollarInfo {
+	return &DollarInfo{
+		ID:    uuid.New().String(),
+		Dolar: bid,
+	}
 }
