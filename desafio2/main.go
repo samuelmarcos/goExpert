@@ -25,13 +25,18 @@ type CepResponse struct {
 	Siafi       string `json:"siafi"`
 }
 
+type Response struct {
+	url  string
+	body CepResponse
+}
+
 func main() {
 	urls := []string{
 		"https://brasilapi.com.br/api/cep/v1/01153000 + 35402176",
 		"http://viacep.com.br/ws/35402176/json/",
 	}
 
-	chanResults := make(chan *CepResponse, len(urls))
+	chanResults := make(chan *Response, len(urls))
 	chanErros := make(chan error, len(urls))
 	var wg sync.WaitGroup
 	wg.Add(len(urls))
@@ -39,32 +44,30 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	for _, url := range urls {
-		go makeRequest(url, chanResults, chanErros, ctx, &wg)
-	}
+	go makeRequest(urls[0], chanResults, chanErros, ctx, &wg)
+	go makeRequest(urls[1], chanResults, chanErros, ctx, &wg)
 
 	wg.Wait()
 
-	for _, url := range urls {
-		select {
-		case res := <-chanResults:
-			fmt.Printf("Url %s obteve response primeiro :", url)
-			fmt.Println(res)
-			return
-		case err := <-chanErros:
-			fmt.Printf("Url %s obteve response de error :", url)
-			fmt.Println(err)
-			return
+	select {
+	case res := <-chanResults:
+		fmt.Printf("Url %s obteve response primeiro, com resposta %v:", res.url, res.body)
+		return
+	case err := <-chanErros:
+		fmt.Printf("Error %v !! ", err)
+		return
 
-		case <-ctx.Done():
-			fmt.Printf("Timeout atingido ao realizar request em %s :", url)
-			return
-		}
+	case <-time.After(1 * time.Second):
+		fmt.Printf("Timeout atingido ao realizar request")
+		return
 
+	case <-ctx.Done():
+		fmt.Printf("Timeout atingido ao realizar request")
+		return
 	}
 }
 
-func makeRequest(url string, chanResults chan<- *CepResponse, chanErros chan<- error, ctx context.Context, wg *sync.WaitGroup) {
+func makeRequest(url string, chanResults chan<- *Response, chanErros chan<- error, ctx context.Context, wg *sync.WaitGroup) {
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 
@@ -84,6 +87,10 @@ func makeRequest(url string, chanResults chan<- *CepResponse, chanErros chan<- e
 	if err != nil {
 		chanErros <- err
 	}
-	chanResults <- &cepResp
+	response := &Response{
+		url:  url,
+		body: cepResp,
+	}
+	chanResults <- response
 
 }
