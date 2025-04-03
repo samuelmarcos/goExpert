@@ -33,8 +33,8 @@ type Response struct {
 
 func main() {
 	urls := []string{
-		"https://brasilapi.com.br/api/cep/v1/01153000",
-		"http://viacep.com.br/ws/01153000/json/",
+		"https://brasilapi.com.br/api/cep/v1/35402176",
+		"http://viacep.com.br/ws/35402176/json/",
 	}
 
 	// Create buffered channels
