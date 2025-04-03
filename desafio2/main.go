@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -26,71 +27,100 @@ type CepResponse struct {
 }
 
 type Response struct {
-	url  string
-	body CepResponse
+	URL  string
+	Body CepResponse
 }
 
 func main() {
 	urls := []string{
-		"https://brasilapi.com.br/api/cep/v1/01153000 + 35402176",
-		"http://viacep.com.br/ws/35402176/json/",
+		"https://brasilapi.com.br/api/cep/v1/01153000",
+		"http://viacep.com.br/ws/01153000/json/",
 	}
 
+	// Create buffered channels
 	chanResults := make(chan *Response, len(urls))
-	chanErros := make(chan error, len(urls))
-	var wg sync.WaitGroup
-	wg.Add(len(urls))
+	chanErrors := make(chan error, len(urls))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	go makeRequest(urls[0], chanResults, chanErros, ctx, &wg)
-	go makeRequest(urls[1], chanResults, chanErros, ctx, &wg)
+	var wg sync.WaitGroup
+	wg.Add(len(urls))
 
-	wg.Wait()
+	for _, url := range urls {
+		go makeRequest(url, chanResults, chanErrors, ctx, &wg)
+	}
+
+	go func() {
+		wg.Wait()
+		close(chanResults)
+		close(chanErrors)
+	}()
 
 	select {
-	case res := <-chanResults:
-		fmt.Printf("Url %s obteve response primeiro, com resposta %v :", res.url, res.body)
+	case res, ok := <-chanResults:
+		if !ok {
+			fmt.Println("Channel closed without results")
+			return
+		}
+		fmt.Printf("First response received from %s:\n", res.URL)
+		fmt.Printf("CEP: %s\n", res.Body.Cep)
+		fmt.Printf("Logradouro: %s\n", res.Body.Logradouro)
+		fmt.Printf("Bairro: %s\n", res.Body.Bairro)
+		fmt.Printf("Localidade: %s\n", res.Body.Localidade)
+		fmt.Printf("UF: %s\n", res.Body.Uf)
 		cancel()
-	case err := <-chanErros:
-		fmt.Printf("Error %v !! ", err)
-		return
 
-	case <-time.After(1 * time.Second):
-		fmt.Printf("Timeout atingido ao realizar request")
+	case err, ok := <-chanErrors:
+		if !ok {
+			fmt.Println("Channel closed without errors")
+			return
+		}
+		fmt.Printf("Error occurred: %v\n", err)
 		return
 
 	case <-ctx.Done():
-		fmt.Printf("Timeout atingido ao realizar request")
+		fmt.Println("Timeout reached while waiting for responses")
 		return
 	}
 }
 
-func makeRequest(url string, chanResults chan<- *Response, chanErros chan<- error, ctx context.Context, wg *sync.WaitGroup) {
-
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
-
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil {
-		chanErros <- err
-	}
-
-	defer resp.Body.Close()
-
+func makeRequest(url string, chanResults chan<- *Response, chanErrors chan<- error, ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	var cepResp CepResponse
-
-	err = json.NewDecoder(resp.Body).Decode(&cepResp)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		chanErros <- err
+		chanErrors <- fmt.Errorf("error creating request for %s: %v", url, err)
+		return
 	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		chanErrors <- fmt.Errorf("error making request to %s: %v", url, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		chanErrors <- fmt.Errorf("error reading response body from %s: %v", url, err)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		chanErrors <- fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, url)
+		return
+	}
+
+	var cepResp CepResponse
+	if err := json.Unmarshal(body, &cepResp); err != nil {
+		chanErrors <- fmt.Errorf("error unmarshaling response from %s: %v", url, err)
+		return
+	}
+
 	response := &Response{
-		url:  url,
-		body: cepResp,
+		URL:  url,
+		Body: cepResp,
 	}
 	chanResults <- response
-
 }
