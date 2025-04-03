@@ -51,8 +51,8 @@ func main() {
 
 	select {
 	case res := <-chanResults:
-		fmt.Printf("Url %s obteve response primeiro, com resposta %v:", res.url, res.body)
-		return
+		fmt.Printf("Url %s obteve response primeiro, com resposta %v :", res.url, res.body)
+		cancel()
 	case err := <-chanErros:
 		fmt.Printf("Error %v !! ", err)
 		return
