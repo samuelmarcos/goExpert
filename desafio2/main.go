@@ -51,12 +51,17 @@ func main() {
 		go makeRequest(url, chanResults, chanErrors, ctx, &wg)
 	}
 
+	// Wait for all goroutines to finish
 	go func() {
 		wg.Wait()
 		close(chanResults)
 		close(chanErrors)
 	}()
 
+	// Create a timeout channel
+	timeout := time.After(1 * time.Second)
+
+	// Handle results
 	select {
 	case res, ok := <-chanResults:
 		if !ok {
@@ -79,8 +84,13 @@ func main() {
 		fmt.Printf("Error occurred: %v\n", err)
 		return
 
+	case <-timeout:
+		fmt.Println("Request timeout reached")
+		cancel()
+		return
+
 	case <-ctx.Done():
-		fmt.Println("Timeout reached while waiting for responses")
+		fmt.Println("Context timeout reached")
 		return
 	}
 }
