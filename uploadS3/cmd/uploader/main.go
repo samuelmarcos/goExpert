@@ -43,6 +43,21 @@ func main() {
 	}
 	defer dir.Close()
 	uploadControl := make(chan struct{}, 100)
+	errorFileUpload := make(chan string, 10)
+
+	go func() {
+		for {
+			select {
+			case fileName := <-errorFileUpload:
+				fmt.Printf("Upload retry on: %s\n", fileName)
+				uploadControl <- struct{}{}
+				wg.Add(1)
+				go uploadFile(fileName, uploadControl, errorFileUpload)
+			case <-errorFileUpload:
+				return
+			}
+		}
+	}()
 
 	for {
 		files, err := dir.ReadDir(1)
@@ -55,13 +70,15 @@ func main() {
 		}
 		wg.Add(1)
 		uploadControl <- struct{}{}
-		go uploadFile(files[0].Name(), uploadControl)
+
+		go uploadFile(files[0].Name(), uploadControl, errorFileUpload)
 	}
 
 	wg.Wait()
+	close(errorFileUpload)
 }
 
-func uploadFile(fileName string, uploadControl <-chan struct{}) {
+func uploadFile(fileName string, uploadControl <-chan struct{}, errorFileUpload chan<- string) {
 	defer wg.Done()
 	completeFileName := fmt.Sprintf("./tmp/%s", fileName)
 
@@ -71,6 +88,7 @@ func uploadFile(fileName string, uploadControl <-chan struct{}) {
 	if err != nil {
 		fmt.Printf("Error opening file %s\n", completeFileName)
 		<-uploadControl
+		errorFileUpload <- completeFileName
 		return
 	}
 	defer f.Close()
@@ -82,6 +100,7 @@ func uploadFile(fileName string, uploadControl <-chan struct{}) {
 	if err != nil {
 		fmt.Printf("Error uploading file %s\n", completeFileName)
 		<-uploadControl
+		errorFileUpload <- completeFileName
 		return
 	}
 	fmt.Printf("File %s uplaoded successfuly\n", completeFileName)
