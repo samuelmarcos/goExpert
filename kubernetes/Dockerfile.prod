@@ -1,0 +1,10 @@
+FROM golang:latest as builder
+WORKDIR /app
+COPY . .
+#remover deps da lingaugem c e flags de debug
+RUN GOOS=linux CGO_ENABLED=0 go build -ldflags="-w -s" -o server ./cmd/server
+
+#do zero, de uma nova imagem
+FROM scratch
+COPY --from=builder /app/server .
+CMD [ "./server" ]
