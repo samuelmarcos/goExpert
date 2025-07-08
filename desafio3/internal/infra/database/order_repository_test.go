@@ -50,3 +50,21 @@ func (suite *OrderRepositoryTestSuite) TestGivenAnOrder_WhenSave_ThenShouldSaveO
 	suite.Equal(order.Tax, orderResult.Tax)
 	suite.Equal(order.FinalPrice, orderResult.FinalPrice)
 }
+
+func (suite *OrderRepositoryTestSuite) TestGivenOrders_WhenListOrder_ThenShouldReturnAllOrders() {
+	repo := NewOrderRepository(suite.Db)
+	order1, _ := entity.NewOrder("1", 10.0, 2.0)
+	order1.CalculateFinalPrice()
+	repo.Save(order1)
+	order2, _ := entity.NewOrder("2", 20.0, 4.0)
+	order2.CalculateFinalPrice()
+	repo.Save(order2)
+
+	orders, err := repo.ListOrder()
+	suite.NoError(err)
+	suite.Len(orders, 2)
+
+	ids := []string{orders[0].ID, orders[1].ID}
+	suite.Contains(ids, "1")
+	suite.Contains(ids, "2")
+}
