@@ -1,6 +1,8 @@
 package graph
 
-import "samuelmarcos/goexpert.com/internal/usecase"
+import (
+	"samuelmarcos/goexpert.com/internal/usecase"
+)
 
 // This file will not be regenerated automatically.
 //
@@ -8,4 +10,5 @@ import "samuelmarcos/goexpert.com/internal/usecase"
 
 type Resolver struct {
 	CreateOrderUseCase usecase.CreateOrderUseCase
+	ListOrderUseCase   usecase.ListOrderUseCase
 }

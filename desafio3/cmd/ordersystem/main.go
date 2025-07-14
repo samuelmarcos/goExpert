@@ -7,11 +7,14 @@ import (
 	"net/http"
 
 	"samuelmarcos/goexpert.com/configs"
+	"samuelmarcos/goexpert.com/internal/event"
 	"samuelmarcos/goexpert.com/internal/event/handler"
+	"samuelmarcos/goexpert.com/internal/infra/database"
 	"samuelmarcos/goexpert.com/internal/infra/graph"
 	"samuelmarcos/goexpert.com/internal/infra/grpc/pb"
 	"samuelmarcos/goexpert.com/internal/infra/grpc/service"
 	"samuelmarcos/goexpert.com/internal/infra/web/webserver"
+	"samuelmarcos/goexpert.com/internal/usecase"
 	"samuelmarcos/goexpert.com/pkg/events"
 
 	graphql_handler "github.com/99designs/gqlgen/graphql/handler"
@@ -44,6 +47,11 @@ func main() {
 	})
 
 	createOrderUseCase := NewCreateOrderUseCase(db, eventDispatcher)
+	listOrderUseCase := usecase.NewListOrderUseCase(
+		database.NewOrderRepository(db),
+		event.NewOrderCreated(),
+		eventDispatcher,
+	)
 
 	webserver := webserver.NewWebServer(configs.WebServerPort)
 	webOrderHandler := NewWebOrderHandler(db, eventDispatcher)
@@ -66,6 +74,7 @@ func main() {
 
 	srv := graphql_handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{
 		CreateOrderUseCase: *createOrderUseCase,
+		ListOrderUseCase:   *listOrderUseCase,
 	}}))
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
