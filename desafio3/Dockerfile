@@ -3,10 +3,12 @@ FROM golang:latest as builder
 WORKDIR /app
 COPY . .
 RUN go mod download
-RUN GOOS=linux CGO_ENABLED=0 go build -ldflags="-w -s" -o main ./cmd/ordersystem
+RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o main ./cmd/ordersystem
 
 # Run stage
 FROM scratch
 COPY --from=builder /app/main .
+COPY --from=builder /app/.env .
 EXPOSE 8000
+EXPOSE 50051
 CMD ["./main"] 
