@@ -6,7 +6,9 @@ RUN go mod download
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o main ./cmd/ordersystem
 
 # Run stage
-FROM scratch
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
 COPY --from=builder /app/main .
 COPY --from=builder /app/.env .
 EXPOSE 8000
