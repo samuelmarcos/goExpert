@@ -36,12 +36,12 @@ func (r *OrderRepository) GetTotal() (int, error) {
 }
 
 func (r *OrderRepository) ListOrder() ([]entity.Order, error) {
-	rows, err := r.Db.Query("SELECT * FROM orders LIMIT ? OFFSET ?")
+	rows, err := r.Db.Query("SELECT id, price, tax, final_price FROM orders")
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
+
 	var orders []entity.Order
 	for rows.Next() {
 		var order entity.Order
