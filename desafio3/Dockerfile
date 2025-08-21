@@ -10,7 +10,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
+COPY --from=builder /app/cmd/ordersystem/.env .
 EXPOSE 8000
 EXPOSE 50051
-CMD ["./main"] 
+CMD ["./main"]
